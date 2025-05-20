@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Relative vs Absolute Positioning</title>
+    <style>
+        .container {
+            position: relative;
+            width: 300px;
+            height: 200px;
+            border: 2px solid #333;
+            margin-bottom: 40px;
+            background-color: #f5f5f5;
+        }
+
+        .relative-box {
+            position: relative;
+            top: 20px;
+            left: 30px;
+            width: 100px;
+            height: 100px;
+            background-color: skyblue;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .absolute-box {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 100px;
+            height: 100px;
+            background-color: salmon;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .description {
+            font-family: sans-serif;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="description"><strong>Relative Positioning:</strong> Box is shifted but still takes up its original space
+    </div>
+    <div class="container">
+        <p> This is the content paragraph trying to impact teh Relative box.</p>
+        <div class="relative-box">Relative</div>
+    </div>
+
+    <div class="description"><strong>Absolute Positioning:</strong> Box is placed based on nearest positioned ancestor
+        (the container)</div>
+    <div class="container">
+        <p> This is the content paragraph trying to impact the Absolute box.</p>
+        <div class="absolute-box">Absolute</div>
+    </div>
+
+</body>
+
+</html>
