@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dinosaur Game</title>
+    <style>
+        body {
+            background: #f7f7f7;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            user-select: none;
+        }
+        #gameContainer {
+            width: 800px;
+            margin: 40px auto;
+            background: #fff;
+            border: 2px solid #bbb;
+            border-radius: 8px;
+            box-shadow: 0 4px 24px #bbb3;
+            padding: 20px 0 0 0;
+        }
+        #gameCanvas {
+            display: block;
+            margin: 0 auto;
+            background: #f7f7f7;
+            border-bottom: 2px solid #888;
+        }
+        #scoreboard {
+            text-align: center;
+            margin: 10px 0 20px 0;
+            font-size: 1.2em;
+            color: #444;
+        }
+        #restartBtn {
+            display: none;
+            margin: 0 auto 20px auto;
+            padding: 8px 24px;
+            font-size: 1em;
+            background: #4caf50;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #restartBtn:hover {
+            background: #388e3c;
+        }
+        @media (max-width: 850px) {
+            #gameContainer {
+                width: 98vw;
+            }
+            #gameCanvas {
+                width: 98vw !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="scoreboard">
+            Score: <span id="score">0</span> &nbsp; | &nbsp; High Score: <span id="highScore">0</span>
+        </div>
+        <canvas id="gameCanvas" width="800" height="200"></canvas>
+        <button id="restartBtn">Restart</button>
+        <div style="text-align:center; color:#888; font-size:0.95em; margin: 10px 0 20px 0;">
+            Press <b>Space</b> or <b>Up Arrow</b> to jump. Avoid the cacti!
+        </div>
+    </div>
+    <script>
+        // Game constants
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const groundY = 170;
+        const dino = {
+            x: 60,
+            y: groundY,
+            width: 44,
+            height: 47,
+            vy: 0,
+            gravity: 0.9,
+            jumpPower: -14,
+            isJumping: false,
+            spriteStep: 0,
+            spriteTick: 0
+        };
+        const cactusImg = new Image();
+        cactusImg.src = "cactus.png";
+        const dinoImg = new Image();
+        dinoImg.src = "dino_sprite.png";
+        // Fallback: draw cactus and dino if images not loaded
+        let cactusLoaded = false, dinoLoaded = false;
+        cactusImg.onload = () => cactusLoaded = true;
+        dinoImg.onload = () => dinoLoaded = true;
+
+        let cacti = [];
+        let score = 0;
+        let highScore = localStorage.getItem('dinoHighScore') || 0;
+        let gameSpeed = 3;
+        let gameOver = false;
+        let frame = 0;
+        let nextCactusIn = 0;
+
+        document.getElementById('highScore').textContent = highScore;
+
+        function resetGame() {
+            cacti = [];
+            score = 0;
+            gameSpeed = 7;
+            dino.y = groundY;
+            dino.vy = 0;
+            dino.isJumping = false;
+            gameOver = false;
+            frame = 0;
+            nextCactusIn = 0;
+            document.getElementById('score').textContent = score;
+            document.getElementById('restartBtn').style.display = 'none';
+            loop();
+        }
+
+        function drawDino() {
+            if (dinoLoaded) {
+                // 2 frames: running (0,1), 1 frame: ducking (not implemented)
+                let spriteX = 0;
+                if (!dino.isJumping) {
+                    spriteX = dino.spriteStep * 44;
+                }
+                ctx.drawImage(dinoImg, spriteX, 0, 44, 47, dino.x, dino.y, dino.width, dino.height);
+            } else {
+                // fallback: draw a gray dino
+                ctx.fillStyle = "#555";
+                ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
+                ctx.fillStyle = "#222";
+                ctx.fillRect(dino.x + 30, dino.y + 10, 8, 8); // head
+            }
+        }
+
+        function drawCactus(cactus) {
+            if (cactusLoaded) {
+                ctx.drawImage(cactusImg, cactus.x, cactus.y, cactus.width, cactus.height);
+            } else {
+                // fallback: draw a green rectangle
+                ctx.fillStyle = "#228B22";
+                ctx.fillRect(cactus.x, cactus.y, cactus.width, cactus.height);
+            }
+        }
+
+        function spawnCactus() {
+            // Randomize cactus height and width a bit
+            const heights = [40, 50, 60];
+            const widths = [18, 24, 30];
+            const h = heights[Math.floor(Math.random() * heights.length)];
+            const w = widths[Math.floor(Math.random() * widths.length)];
+            cacti.push({
+                x: canvas.width + 10,
+                y: groundY + dino.height - h,
+                width: w,
+                height: h
+            });
+        }
+
+        function update() {
+            // Dino physics
+            dino.y += dino.vy;
+            dino.vy += dino.gravity;
+            if (dino.y >= groundY) {
+                dino.y = groundY;
+                dino.vy = 0;
+                dino.isJumping = false;
+            }
+
+            // Dino running animation
+            if (!dino.isJumping) {
+                dino.spriteTick++;
+                if (dino.spriteTick > 6) {
+                    dino.spriteStep = (dino.spriteStep + 1) % 2;
+                    dino.spriteTick = 0;
+                }
+            } else {
+                dino.spriteStep = 0;
+            }
+
+            // Cactus logic
+            for (let i = 0; i < cacti.length; i++) {
+                cacti[i].x -= gameSpeed;
+            }
+            // Remove off-screen cacti
+            cacti = cacti.filter(c => c.x + c.width > 0);
+
+            // Spawn new cactus
+            if (nextCactusIn <= 0) {
+                spawnCactus();
+                nextCactusIn = 60 + Math.random() * 60 + Math.max(0, 120 - score); // more score, less gap
+            } else {
+                nextCactusIn--;
+            }
+
+            // Collision detection
+            for (let i = 0; i < cacti.length; i++) {
+                let c = cacti[i];
+                if (
+                    dino.x + dino.width - 6 > c.x &&
+                    dino.x + 6 < c.x + c.width &&
+                    dino.y + dino.height - 6 > c.y &&
+                    dino.y + 6 < c.y + c.height
+                ) {
+                    gameOver = true;
+                }
+            }
+
+            // Score
+            if (!gameOver) {
+                score++;
+                document.getElementById('score').textContent = score;
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('dinoHighScore', highScore);
+                    document.getElementById('highScore').textContent = highScore;
+                }
+            }
+
+            // Speed up over time
+            if (frame % 120 === 0 && gameSpeed < 16) {
+                gameSpeed += 0.2;
+            }
+        }
+
+        function draw() {
+            // Clear
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Ground
+            ctx.strokeStyle = "#888";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, groundY + dino.height);
+            ctx.lineTo(canvas.width, groundY + dino.height);
+            ctx.stroke();
+
+            // Cacti
+            for (let i = 0; i < cacti.length; i++) {
+                drawCactus(cacti[i]);
+            }
+
+            // Dino
+            drawDino();
+
+            // Game Over
+            if (gameOver) {
+                ctx.font = "bold 32px Arial";
+                ctx.fillStyle = "#d32f2f";
+                ctx.textAlign = "center";
+                ctx.fillText("GAME OVER", canvas.width / 2, 90);
+                ctx.font = "18px Arial";
+                ctx.fillStyle = "#444";
+                ctx.fillText("Press Space or click Restart", canvas.width / 2, 120);
+            }
+        }
+
+        function loop() {
+            if (!gameOver) {
+                update();
+                draw();
+                frame++;
+                requestAnimationFrame(loop);
+            } else {
+                draw();
+                document.getElementById('restartBtn').style.display = 'block';
+            }
+        }
+
+        // Controls
+        document.addEventListener('keydown', function(e) {
+            if ((e.code === 'Space' || e.code === 'ArrowUp') && !dino.isJumping && !gameOver) {
+                dino.vy = dino.jumpPower;
+                dino.isJumping = true;
+            }
+            if ((e.code === 'Space' || e.code === 'ArrowUp') && gameOver) {
+                resetGame();
+            }
+        });
+        document.getElementById('restartBtn').onclick = resetGame;
+
+        // Touch controls for mobile
+        canvas.addEventListener('touchstart', function(e) {
+            if (!dino.isJumping && !gameOver) {
+                dino.vy = dino.jumpPower;
+                dino.isJumping = true;
+            }
+            if (gameOver) {
+                resetGame();
+            }
+        });
+
+        // Draw fallback cactus and dino images if not present
+        // Provide simple 1-color PNGs if not found
+        // You can replace these with real sprites for better look
+        // For now, let's generate them if not present
+        function createFallbackImages() {
+            // Dino sprite: 2 frames, 44x47 each, side by side
+            if (!dinoLoaded) {
+                let dinoCanvas = document.createElement('canvas');
+                dinoCanvas.width = 88;
+                dinoCanvas.height = 47;
+                let dctx = dinoCanvas.getContext('2d');
+                // Frame 1
+                dctx.fillStyle = "#555";
+                dctx.fillRect(0, 0, 44, 47);
+                dctx.fillStyle = "#222";
+                dctx.fillRect(30, 10, 8, 8);
+                // Frame 2 (move leg)
+                dctx.fillStyle = "#555";
+                dctx.fillRect(44, 0, 44, 47);
+                dctx.fillStyle = "#222";
+                dctx.fillRect(74, 10, 8, 8);
+                dinoImg.src = dinoCanvas.toDataURL();
+            }
+            // Cactus: 24x50
+            if (!cactusLoaded) {
+                let cactusCanvas = document.createElement('canvas');
+                cactusCanvas.width = 24;
+                cactusCanvas.height = 50;
+                let cctx = cactusCanvas.getContext('2d');
+                cctx.fillStyle = "#228B22";
+                cctx.fillRect(8, 0, 8, 50);
+                cctx.fillRect(0, 20, 8, 18);
+                cctx.fillRect(16, 28, 8, 14);
+                cactusImg.src = cactusCanvas.toDataURL();
+            }
+        }
+        createFallbackImages();
+
+        // Start game
+        draw();
+        setTimeout(loop, 400);
+
+    </script>
+</body>
+</html>
